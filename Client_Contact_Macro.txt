@@ -1,0 +1,260 @@
+Sub clientContact()
+    Dim objPeriodicalMail As MailItem
+'   Send automated email with specified subject, reciptents, and content
+    Set objPeriodicalMail = Outlook.Application.CreateItem(olMailItem)
+    With objPeriodicalMail
+        .Subject = "Your Monthly Client Contact List"
+'       Specify the recipients of the automated email
+        .To = "stefanrobb@icloud.com"
+        .HTMLBody = emailBody()
+        .Send
+    End With
+End Sub
+' Drafts and returns the contact list for the current month
+Public Function emailBody()
+    Dim p As String
+    Dim f As String
+    Dim s As String
+    Dim fr As Integer
+    Dim ro As Integer
+    Dim rows As Integer
+    Dim frFlag As Integer
+    Dim frBody As String
+    Dim frPrev As String
+    Dim roFlag As Integer
+    Dim roBody As String
+    Dim roPrev As String
+    Dim frContacts() As Integer
+    Dim roContacts() As Integer
+'   Specifies the path of the client list **UPDATE HERE IF THE NAME OR LOCATION OF THE EXCEL FILE CHANGES**
+    p = "C:\Users\srobb\Desktop"
+    f = "2019.05.28_Full_Client_Relationships.xlsx"
+    s = "Sheet1"
+'   Flags that are triggered if there are no FR or RO contacts
+    frFlag = 0
+    roFlag = 0
+'   Holds most recent contact case to minimize runtime
+    frPrev = 1
+    roPrev = 1
+'   Counts the number of rows with client data
+    rows = clientCount(p, f, s)
+'   Counts the number of FR and RO contacts for the current month
+    fr = frCount(p, f, s, rows)
+    ro = roCount(p, f, s, rows)
+'   Determines the row numbers of the FR and RO contacts for the current month, if there are none sets the flag
+    If Not fr = 0 Then
+        ReDim frContacts(1 To fr)
+        For i = 1 To fr
+            frContacts(i) = frRows(p, f, s, frPrev, rows)
+            frPrev = frContacts(i)
+            Debug.Print "frRows " & "(" & i & "): " & frContacts(i)
+        Next i
+    Else
+        frFlag = 1
+    End If
+    If Not ro = 0 Then
+        ReDim roContacts(1 To ro)
+        For i = 1 To ro
+            roContacts(i) = roRows(p, f, s, roPrev, rows)
+            roPrev = roContacts(i)
+            Debug.Print "roRows " & "(" & i & "): " & roContacts(i)
+        Next i
+    Else
+        roFlag = 1
+    End If
+'   Composes the list of client names for FR and RO contact
+    If frFlag = 1 Then
+        frBody = "There are no full review contacts this month!"
+    Else
+        frBody = "You have " & fr & " full reviews this month, they are:"
+        For i = 1 To fr
+            frBody = frBody & "<br>" & getValue(p, f, s, "B" & frContacts(i))
+        Next i
+    End If
+    If roFlag = 1 Then
+        roBody = "There are no reach out contacts this month!"
+    Else
+        roBody = "You have " & ro & " reach outs this month, they are:"
+        For i = 1 To ro
+            roBody = roBody & "<br>" & getValue(p, f, s, "B" & roContacts(i))
+        Next i
+    End If
+'   Updates the contact month of the clients contacted this month
+    For i = 1 To fr
+        Call frUpdate(p, f, s, frContacts(i))
+    Next i
+    For i = 1 To ro
+        Call roUpdate(p, f, s, roContacts(i))
+    Next i
+'   Combines the FR and RO contact lists to compose the body of the email
+    emailBody = "<HTML><BODY>" & frBody & "<br>" & roBody & "</HTML></BODY>"
+        
+End Function
+' Searches and returns the value of a cell in a closed workbook using an Excel 4.0 Macro
+Public Function getValue(path, file, sheet, ref)
+    Dim wb As Workbook
+    Dim ws As Worksheet
+    Dim arg As String
+'   Make sure the file exists
+    If Right(path, 1) <> "\" Then path = path & "\"
+    If Dir(path & file) = "" Then
+        MsgBox "File Not Found"
+        Exit Function
+    End If
+'   Create the argument
+    Set wb = Workbooks.Open(path & file)
+    Set ws = wb.Sheets(sheet)
+    arg = "'" & path & "[" & file & "]" & sheet & "'!" & _
+        ws.Range(ref).Range("A1").Address(, , xlR1C1)
+    Workbooks(file).Close (False)
+'   Execute an XLM macro
+    getValue = ExecuteExcel4Macro(arg)
+End Function
+' Counts and returns the number of full review contacts for the current month
+Public Function frCount(path, file, sheet, lastRow)
+    Dim i As Integer
+    Dim clientCount As Integer
+    Dim fullReview As String
+    Dim contactList As String
+    Dim frMonth As String
+    Dim tdMonth As String
+'   Initilize the count
+    clientCount = 0
+'   Increments the counter everytime a contact month is equal to current month
+    For i = 2 To lastRow
+        fullReview = "H" & i
+        frMonth = getValue(path, file, sheet, fullReview)
+        tdMonth = getMonth()
+        If StrComp(frMonth, tdMonth) = 0 Then
+            clientCount = clientCount + 1
+        End If
+    Next i
+'   Prints to the immediate window and returns the number of FR contacts
+    Debug.Print "frCount:" & clientCount
+    frCount = clientCount
+End Function
+' Counts and returns the number of reach out contacts for the current month
+Public Function roCount(path, file, sheet, lastRow)
+    Dim i As Integer
+    Dim clientCount As Integer
+    Dim reachOut As String
+    Dim contactList As String
+    Dim roMonth As String
+    Dim tdMonth As String
+'   Initilize the count
+    clientCount = 0
+'   Increments the counter everytime a contact month is equal to current month
+    For i = 2 To lastRow
+        reachOut = "I" & i
+        roMonth = getValue(path, file, sheet, reachOut)
+        tdMonth = getMonth()
+        If StrComp(roMonth, tdMonth) = 0 Then
+            clientCount = clientCount + 1
+        End If
+    Next i
+'   Prints to the immediate window and returns the number of RO contacts
+    Debug.Print "roCount:" & clientCount
+    roCount = clientCount
+End Function
+' Returns the row numbers of the FR contact clients for the current month
+Public Function frRows(path, file, sheet, frPrevious, lastRow)
+    Dim i As Integer
+    Dim frMonth As String
+    Dim tdMonth As String
+    Dim contacts As Integer
+'   Determines the row number of the next FR contact client
+    For i = frPrevious + 1 To lastRow
+        fullReview = "H" & i
+        frMonth = getValue(path, file, sheet, fullReview)
+        tdMonth = getMonth()
+        If StrComp(frMonth, tdMonth) = 0 Then
+            contact = i
+            Exit For
+        End If
+    Next i
+'   Returns the row number of the next FR contact client
+    frRows = contact
+End Function
+' Returns the row numbers of the RO contact clients for the current month
+Public Function roRows(path, file, sheet, roPrevious, lastRow)
+    Dim i As Integer
+    Dim roMonth As String
+    Dim tdMonth As String
+    Dim contacts As Integer
+'   Determines the row number of the next RO contact client
+    For i = roPrevious + 1 To lastRow
+        reachOut = "I" & i
+        roMonth = getValue(path, file, sheet, reachOut)
+        tdMonth = getMonth()
+        If StrComp(roMonth, tdMonth) = 0 Then
+            contact = i
+            Exit For
+        End If
+    Next i
+'   Returns the row number of the next RO contact client
+    roRows = contact
+End Function
+' Returns the integer representation of the current month
+Public Function getMonth()
+    Dim today As Date
+'   Initilize today to the current data
+    today = Date
+'   Return the current month
+    getMonth = Month(Date)
+End Function
+' Returns the number of rows with data by verifying that the row has a client name
+Public Function clientCount(path, file, sheet)
+    Dim count As Integer
+    Dim i As Integer
+'   Initilize counters
+    count = 1
+    i = 2
+'   Increment the counter until a row with no client name
+    Do While Not getValue(path, file, sheet, "B" & i) = 0
+        count = count + 1
+        i = i + 1
+        Debug.Print count & ": Row " & i - 1
+    Loop
+'   Returns the row number of the last row with data
+    clientCount = count
+End Function
+' Updates the contact month of the FR contact on a specified row number
+Sub frUpdate(path, file, sheet, row)
+    Dim gRow As String
+    Dim hRow As String
+    Dim wb As Workbook
+    Dim ws As Worksheet
+'   Declare the cell reference of the G and H column with specified row
+    gRow = "G" & row
+    hRow = "H" & row
+'   Checks the client type and updates respectively the saves the updated file
+    If getValue(path, file, sheet, gRow) = "A" Then
+        Set wb = Workbooks.Open(path & file)
+        Set ws = wb.Sheets(sheet)
+        ws.Range(hRow).Value = ((ws.Range(hRow).Value + 6) Mod 12)
+        Workbooks(file).Close (True)
+    End If
+End Sub
+' Updates the contact month of the RO contact on a specified row number
+Sub roUpdate(path, file, sheet, row)
+    Dim gRow As String
+    Dim iRow As String
+    Dim wb As Workbook
+    Dim ws As Worksheet
+'   Declare the cell reference of the G and I column with specified row
+    gRow = "G" & row
+    iRow = "I" & row
+'   Checks the client type and updates respectively the saves the updated file
+    If getValue(path, file, sheet, gRow) = "A" Or getValue(path, file, sheet, gRow) = "B" Then
+        Set wb = Workbooks.Open(path & file)
+        Set ws = wb.Sheets(sheet)
+        ws.Range(iRow).Value = ((ws.Range(iRow).Value + 3) Mod 12)
+        Workbooks(file).Close (True)
+    End If
+    If getValue(path, file, sheet, "G" & row) = "C" Then
+        Set wb = Workbooks.Open(path & file)
+        Set ws = wb.Sheets(sheet)
+        ws.Range(iRow).Value = ((ws.Range(iRow).Value + 6) Mod 12)
+        Workbooks(file).Close (True)
+    End If
+End Sub
