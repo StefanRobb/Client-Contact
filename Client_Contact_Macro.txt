@@ -5,7 +5,7 @@ Sub clientContact()
     With objPeriodicalMail
         .Subject = "Your Monthly Client Contact List"
 '       Specify the recipients of the automated email
-        .To = "stefanrobb@icloud.com"
+        .To = "send to email"
         .HTMLBody = emailBody()
         .Send
     End With
@@ -27,9 +27,9 @@ Public Function emailBody()
     Dim frContacts() As Integer
     Dim roContacts() As Integer
 '   Specifies the path of the client list **UPDATE HERE IF THE NAME OR LOCATION OF THE EXCEL FILE CHANGES**
-    p = "C:\Users\srobb\Desktop"
-    f = "2019.05.28_Full_Client_Relationships.xlsx"
-    s = "Sheet1"
+    p = "file path"
+    f = "file name"
+    s = "sheet number"
 '   Flags that are triggered if there are no FR or RO contacts
     frFlag = 0
     roFlag = 0
